@@ -30,10 +30,11 @@
 module type T =
 sig 
   type t = {
-    globals: vid list;                     (** program variables *)
-    init: blk;                            (** initialization block of globals *)
-    fundecs: (fid, fundec) Hashtbl.t;     (** table of all declared functions *)
-    src_lang: Newspeak.src_lang;          (** source programming language *)
+    globals: vid list;    (** program variables *)
+    init: blk;            (** initialization block of globals *)
+    fundecs: (fid, fundec) Hashtbl.t; (** table of all
+					  declared functions *)
+    src_lang: Newspeak.src_lang;  (** source programming language *)
   }
      
   and fundec = blk
@@ -278,8 +279,8 @@ exception Error of error
 type dot_file = Trans of dot_file * dot_file | TrList of string list
 
 let rec print_dot_file = function
-  | Trans (s1, s2) -> printf "%s" s1; printf "%s" s2
-  | TrList l -> List.iter print_dot_file l
+  | Trans (s1, s2) -> print_dot_file s1; print_dot_file s2
+  | TrList l -> List.iter (Format.printf "%s; \n") l
 
 let (++) d d = Trans (d, d)
   
@@ -289,30 +290,43 @@ let to_dot prog filename =
   printf "%s@\n" (to_string prog);
   printf "======> !@\n";
 
-  let state_of_stmt f (stmt, loc) = match stmt with
+  let state f (stmt, loc) = match stmt with
     | Set (lval, exp) ->
-      sprintf "\"%s_%s: %s := %s\"" f (string_of_loc) (string_of_lval lval)
+      sprintf "\"%s_%s: %s := %s\"" f (string_of_loc loc)
+        (string_of_lval lval)
 	(string_of_exp exp)
-    | If (exp, blk, blk) -> 
-      sprintf "\"%s_%s: if %s\"" f (string_of_loc) (string_of_exp exp)
+    | If (exp, _, _) -> 
+      sprintf "\"%s_%s: if %s\"" f (string_of_loc loc)
+        (string_of_exp exp)
     | While (exp, blk) ->
-      sprintf "\"%s_%s: while %s\"" f (string_of_loc) (string_of_exp exp)
-    | Call (Funid funid) -> 
-      sprintf "\"%s_%s: call %s\"" f (string_of_loc) (string_of_exp exp) funid
+      sprintf "\"%s_%s: while %s\"" f (string_of_loc loc)
+        (string_of_exp exp)
+    | Call (FunId funid) -> 
+      sprintf "\"%s_%s: call %s\"" f (string_of_loc loc) funid
     | Assert assertion ->     
-      sprintf "\"%s_%s: assert\"" f (string_of_loc) (string_of_exp exp)
-
-  let rec dot_of_stmts f stmts =
-    match stmts with
-    | [] -> TrList of []
-    | s::tail -> dot_of_stmt f tail s
+      sprintf "\"%s_%s: assert %s\"" f (string_of_loc loc)
+        (string_of_assertion assertion)
   in
-  and rec dot_of_stmt f tail (stmt, loc) = match stmt with
-    | Set _ -> 
-
-      
-
-  
+  let tr f s1 s2 = sprintf "%s -> %s" (state f s1) (state f s2) in
+  let label t e = sprintf "%s [%s]" t (string_of_exp e) in  
+  let rec tr_of_stmt f next ((s, loc) as stmt) = match s with
+    | Set _ -> TrList [tr f stmt next]
+    | If (e, blk1, blk2) ->
+      if blk1 = [] && blk2 = [] then TrList [tr f stmt next]
+      else begin
+        let if_branch = dot_of_stmts f (stmt::blk1) next in
+        let else_branch = dot_of_stmts f (stmt::blk2) next in
+        if_branch ++ else_branch end
+    | While (exp, blk) ->
+      TrList [tr f stmt next] ++ (dot_of_stmts f (stmt::blk) stmt)
+    | _ -> assert false 
+        
+  and dot_of_stmts f stmts next = match stmts with
+    | [] -> TrList []
+    | [stmt] -> TrList [tr f stmt next]
+    | s::(next::_ as tail) ->
+      tr_of_stmt f next s ++ dot_of_stmts f tail next
+  in
   let fun_to_dot f body =
     let state stmt =
       sprintf "%s:%s" f (string_of_stmt stmt) in
