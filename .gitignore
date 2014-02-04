@@ -10,3 +10,10 @@
 *.depend
 bin/
 *~
+parser.ml
+parser.mli
+pp_parser.ml
+pp_parser.mli
+lexer.ml
+lexer.mli
+parser.output
