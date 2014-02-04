@@ -284,7 +284,7 @@ type transitions =
 let rec string_of_transitions = function
   | Trans (s1, s2) -> (string_of_transitions s1) ^
       (string_of_transitions s2)
-  | TrList l -> String.concat ";\n" (List.map (Format.sprintf "%s") l)
+  | TrList l -> String.concat "" (List.map (Format.sprintf "%s;\n") l)
 
 let (++) d d = Trans (d, d)
   
@@ -297,19 +297,19 @@ let to_dot prog filename =
   let state f st = match st with End -> "End" | St (stmt, loc) -> begin
     match stmt with
     | Set (lval, exp) ->
-        sprintf "\"%s_%s: %s := %s\"" f (string_of_loc loc)
+        sprintf "%s_%s: %s := %s" f (string_of_loc loc)
           (string_of_lval lval)
 	  (string_of_exp exp)
     | If (exp, _, _) -> 
-        sprintf "\"%s_%s: if %s\"" f (string_of_loc loc)
+        sprintf "%s_%s: if %s" f (string_of_loc loc)
           (string_of_exp exp)
     | While (exp, blk) ->
-        sprintf "\"%s_%s: while %s\"" f (string_of_loc loc)
+        sprintf "%s_%s: while %s" f (string_of_loc loc)
           (string_of_exp exp)
     | Call (FunId funid) -> 
-        sprintf "\"%s_%s: call %s\"" f (string_of_loc loc) funid
+        sprintf "%s_%s: call %s" f (string_of_loc loc) funid
     | Assert assertion ->     
-        sprintf "\"%s_%s: assert %s\"" f (string_of_loc loc)
+        sprintf "%s_%s: assert %s" f (string_of_loc loc)
           (string_of_assertion assertion)
   end in
 
@@ -329,12 +329,11 @@ let to_dot prog filename =
     | While (exp, blk) ->
       TrList [tr f (St stmt) next] ++ (tr_of_stmts f (St stmt) (stmt::blk))
     | _ -> assert false 
-
-        
   and tr_of_stmts f next stmts = match stmts with
     | [] -> TrList []
     | [stmt] -> TrList [tr f (St stmt) next]
     | s::(next::_ as tail) ->
+        Format.printf "Debug %s @\n" (string_of_stmt s);
       tr_of_stmt f (St next) s ++ tr_of_stmts f (St next) tail 
   in
   let fun_to_dot f body = tr_of_stmts f End body
@@ -345,8 +344,7 @@ let to_dot prog filename =
 
   printf "digraph %s {@\n" (Filename.chop_extension filename);
 
-  printf "%s@\n" (string_of_transitions (fun_to_dot "main" main_fun));
-  
+  printf "%s" (string_of_transitions (fun_to_dot "main" main_fun));
   
   printf "}@\n";
   
