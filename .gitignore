@@ -20,3 +20,5 @@ lexer.ml
 lexer.mli
 *.output
 *.html
+*.dot
+*.png

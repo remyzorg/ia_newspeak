@@ -161,8 +161,6 @@ and integer = Int32.t
     
 let string_of_loc (_, line, _) = string_of_int line
   
-let int_of_loc (_, line, _) = line
-  
 let string_of_cst c =
   match c with
       CInt i -> Int32.to_string i
@@ -249,105 +247,100 @@ let string_of_stmt = string_of_stmt ""
   
 let string_of_blk = string_of_blk ""
 
-   (* globals: vid list;                     (\** program variables *\) *)
-   (*  init: blk;                            (\** initialization block of globals *\) *)
-   (*  fundecs: (fid, fundec) Hashtbl.t;     (\** table of all declared functions *\) *)
-   (*  src_lang: Newspeak.src_lang;          (\** source programming language *\) *)
-
-  (*   and fundec = blk *)
-
-   (* and stmtkind = *)
-   (*    Set of (lval * exp)                 (\** assignment *\) *)
-   (*  | If of (exp * blk * blk)             (\** if then else *\) *)
-   (*  | While of (exp * blk)                (\** while loop *\) *)
-   (*  | Call of funexp                      (\** function call *\) *)
-   (*  | Assert of assertion                 (\** assertion *\) *)
-
-  
-  (* and blk = stmt list *)
-      
-  (* and stmt = stmtkind * Newspeak.location *)
-
-  (* and assertion = (lval * cmp * cst)      (\** x == c *)
-
 (* Generates a DOT based representation of the control flow graph of
    the program prog and writes it in the file names filename *)
 type error = HasNoMain
 exception Error of error
 
-type state = St of stmt | End
+type state = St of stmt | End | RTE
 
 type transitions =
-  | Trans of transitions * transitions
-  | TrList of string list
+  | TCons of transitions * transitions
+  | Tr of string
+  | EmptyTr
 
 let rec string_of_transitions = function
-  | Trans (s1, s2) -> (string_of_transitions s1) ^
+  | TCons (s1, s2) -> (string_of_transitions s1) ^
       (string_of_transitions s2)
-  | TrList l -> String.concat "" (List.map (Format.sprintf "%s;\n") l)
+  | Tr t -> Format.sprintf "%s;\n" t
+  | EmptyTr -> ""
 
-let (++) d d = Trans (d, d)
+let (++) d1 d2 = TCons (d1, d2)
+  
+open Format
+let state f st =
+  match st with End -> "End" | RTE -> "RTE" |
+      St (stmt, loc) -> begin
+        match stmt with
+        | Set (lval, exp) ->
+            sprintf "%s_%s: %s := %s" f (string_of_loc loc)
+              (string_of_lval lval)
+	      (string_of_exp exp)
+        | If (exp, _, _) -> 
+            sprintf "%s_%s: if %s" f (string_of_loc loc)
+              (string_of_exp exp)
+        | While (_, _) ->
+            sprintf "%s_%s: while" f (string_of_loc loc)
+        | Call (FunId funid) -> 
+            sprintf "%s_%s: call %s" f (string_of_loc loc) funid
+        | Assert _ ->     
+            sprintf "%s_%s: assert" f (string_of_loc loc)
+      end
+
+let tr f s1 s2 = Tr (sprintf "\"%s\" -> \"%s\"" (state f s1) (state f s2))
+let label t lb = match t with Tr s ->
+  Tr (sprintf "%s [%s]" s lb) | EmptyTr | TCons _ -> t
   
 let to_dot prog filename = 
-  let open Format in
-  let fid = open_out filename in
   printf "%s@\n" (to_string prog);
   printf "======> !@\n";
 
-  let state f st = match st with End -> "End" | St (stmt, loc) -> begin
-    match stmt with
-    | Set (lval, exp) ->
-        sprintf "%s_%s: %s := %s" f (string_of_loc loc)
-          (string_of_lval lval)
-	  (string_of_exp exp)
-    | If (exp, _, _) -> 
-        sprintf "%s_%s: if %s" f (string_of_loc loc)
-          (string_of_exp exp)
-    | While (exp, blk) ->
-        sprintf "%s_%s: while %s" f (string_of_loc loc)
-          (string_of_exp exp)
-    | Call (FunId funid) -> 
-        sprintf "%s_%s: call %s" f (string_of_loc loc) funid
-    | Assert assertion ->     
-        sprintf "%s_%s: assert %s" f (string_of_loc loc)
-          (string_of_assertion assertion)
-  end in
-
-  let tr f s1 s2 = sprintf "%s -> %s" (state f s1) (state f s2) in
-  let label t e = sprintf "%s [%s]" t (string_of_exp e) in  
-
-  
-  let rec tr_of_stmt f next ((s, loc) as stmt) =
+  let rec tr_of_stmt f next ((s, _) as stmt) =
+    let branch lb blk = begin match blk with h::_ ->
+      label (tr f (St stmt) (St h)) lb | _ -> EmptyTr end ++
+      tr_of_stmts f next blk
+    in
     match s with
-    | Set _ -> TrList [tr f (St stmt) next]
-    | If (e, blk1, blk2) ->
-      if blk1 = [] && blk2 = [] then TrList [tr f (St stmt) next]
-      else begin
-        let if_branch = tr_of_stmts f next (stmt::blk1) in
-        let else_branch = tr_of_stmts f next (stmt::blk2) in
-        if_branch ++ else_branch end
-    | While (exp, blk) ->
-      TrList [tr f (St stmt) next] ++ (tr_of_stmts f (St stmt) (stmt::blk))
-    | _ -> assert false 
-  and tr_of_stmts f next stmts = match stmts with
-    | [] -> TrList []
-    | [stmt] -> TrList [tr f (St stmt) next]
-    | s::(next::_ as tail) ->
-        Format.printf "Debug %s @\n" (string_of_stmt s);
-      tr_of_stmt f (St next) s ++ tr_of_stmts f (St next) tail 
-  in
-  let fun_to_dot f body = tr_of_stmts f End body
-  in
+    | Set _ -> tr f (St stmt) next
+    | If (_, blk1, blk2) ->
+        if blk1 = [] && blk2 = [] then tr f (St stmt) next
 
-  let main_fun = try Hashtbl.find prog.fundecs "main" with Not_found ->
+        (* Fix branch *)
+        
+        else branch "then" blk1 ++ branch "else" blk2
+    | While (exp, blk) ->
+        tr f (St stmt) next ++ branch (string_of_exp exp) blk
+    | Call (FunId called)->
+        let called_body = try Hashtbl.find prog.fundecs called with
+          Not_found -> assert false in
+        begin match called_body with
+        | [] -> tr f (St stmt) next
+        | first::_ -> tr f (St stmt) (St first)
+        end
+    | Assert assertion ->
+        tr f (St stmt) RTE ++
+          label (tr f (St stmt) next) (string_of_assertion assertion)
+
+  and tr_of_stmts f next stmts = match stmts with
+  | [] -> EmptyTr
+  | [stmt] -> tr_of_stmt f next stmt
+  | stmt1::(stmt2::_ as tail) -> tr_of_stmt f (St stmt2) stmt1 ++
+      tr_of_stmts f next tail 
+  in
+  let fun_to_dot f body = tr_of_stmts f End body in
+  let main = try Hashtbl.find prog.fundecs "main" with Not_found ->
     raise (Error (HasNoMain)) in
 
-  printf "digraph %s {@\n" (Filename.chop_extension filename);
+  let fid = open_out filename in
+  let fmt = formatter_of_out_channel fid in
 
-  printf "%s" (string_of_transitions (fun_to_dot "main" main_fun));
-  
-  printf "}@\n";
-  
+  let str = sprintf "digraph %s {@\n%s}\n"
+    Filename.(chop_extension (basename filename))
+    (string_of_transitions (fun_to_dot "main" main))
+  in
+
+  fprintf fmt "%s" str;
+  printf "%s" str;
   
   (* A compléter *)
   close_out fid
