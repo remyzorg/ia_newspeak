@@ -289,24 +289,21 @@ let state f st =
 
 let tr f s1 s2 = Tr (sprintf "\"%s\" -> \"%s\"" (state f s1) (state f s2))
 let label t lb = match t with Tr s ->
-  Tr (sprintf "%s [%s]" s lb) | EmptyTr | TCons _ -> t
+  Tr (sprintf "%s [label=\"%s\"]" s lb) | EmptyTr | TCons _ -> t
   
 let to_dot prog filename = 
   printf "%s@\n" (to_string prog);
   printf "======> !@\n";
 
   let rec tr_of_stmt f next ((s, _) as stmt) =
-    let branch lb blk = begin match blk with h::_ ->
-      label (tr f (St stmt) (St h)) lb | _ -> EmptyTr end ++
-      tr_of_stmts f next blk
+    let branch lb blk = begin match blk with
+    | [] -> label (tr f (St stmt) next) lb
+    | h::_ -> label (tr f (St stmt) (St h)) lb end ++ tr_of_stmts f next blk
     in
     match s with
     | Set _ -> tr f (St stmt) next
     | If (_, blk1, blk2) ->
         if blk1 = [] && blk2 = [] then tr f (St stmt) next
-
-        (* Fix branch *)
-        
         else branch "then" blk1 ++ branch "else" blk2
     | While (exp, blk) ->
         tr f (St stmt) next ++ branch (string_of_exp exp) blk
