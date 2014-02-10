@@ -46,11 +46,10 @@ let check_exp loc e s =
       | BinOp (op, e1, e2) ->
 	  check e1;
 	  check e2;
-	  if not (State.is_safe_binop s (op, e1, e2)) then begin
-	    print_endline (Simple.string_of_loc loc^": "
-			   ^"potential invalid operation: "
-			   ^(Simple.string_of_binop op))
-	  end
+	  if not (State.is_safe_binop s (op, e1, e2)) then 
+	  print_endline (Simple.string_of_loc loc^": "
+			 ^"potential invalid operation: "
+			 ^(Simple.string_of_binop op))
       | _ -> ()
   in
     check e

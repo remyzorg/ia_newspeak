@@ -40,7 +40,9 @@ sig
   val implies: (t * Simple.cmp * Int32.t) -> bool
   val neg: t -> t
   val add: t -> t -> t
+  val sub: t -> t -> t
   val is_safe_add: t -> t -> bool
+  val is_safe_sub: t -> t -> bool
   val guard: bop -> t -> t -> t
   val to_string: t -> string
 end

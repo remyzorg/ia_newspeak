@@ -61,6 +61,7 @@ let add x y =
 	  else Val z
     | _ -> Top
 
+
 let is_safe_add x y =
   match (x, y) with
       (Val x, Val y) ->
@@ -68,16 +69,47 @@ let is_safe_add x y =
          (Int64.compare (Int64.add (Int64.of_int32 x) (Int64.of_int32 y)) (Int64.of_int32 z) == 0) 
     | _ -> false
 
+
+let sub x y =
+  match (x, y) with
+      (Val x, Val y) -> 
+	let z = Int32.sub x y in
+         if (Int64.compare (Int64.sub (Int64.of_int32 x) (Int64.of_int32 y)) (Int64.of_int32 z) != 0) then Top
+	  else Val z
+    | _ -> Top
+        
+
+let is_safe_sub x y =
+  match (x, y) with
+      (Val x, Val y) ->
+	let z = Int32.sub x y in
+         (Int64.compare (Int64.sub (Int64.of_int32 x) (Int64.of_int32 y)) (Int64.of_int32 z) == 0) 
+    | _ -> false
+
+        
+
 let implies _ = false
 
 (* Restricts the value x to make the condition 
    c op x true *)
 let guard op c x =
-  match (op, c, x) with
-      (LTE, Val i, Val x) when Int32.compare i x > 0 -> raise Emptyset
-    | _ -> x
+  match c, x with Val i, Val xm ->
+    let test = Int32.compare i xm in
+    let op v = begin match op with LTE -> (>) | LT -> (>=) | EQ -> (<>) | GTE -> (<)
+    | GT -> (<=) | NEQ -> (=) end v 0 in
+    if op test then raise Emptyset else x
+  | _ -> x
 
 let to_string v = 
   match v with
-      Val i -> Int32.to_string i
-    | Top -> "?"
+  | Val i -> Int32.to_string i
+  | Top -> "?"
+
+
+
+
+
+
+
+
+

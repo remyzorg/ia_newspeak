@@ -249,8 +249,6 @@ let string_of_blk = string_of_blk ""
 
 (* Generates a DOT based representation of the control flow graph of
    the program prog and writes it in the file names filename *)
-type error = HasNoMain
-exception Error of error
 
 type state = St of stmt | End | RTE
 
@@ -296,27 +294,28 @@ let to_dot prog filename =
   printf "======> !@\n";
 
   let rec tr_of_stmt f next ((s, _) as stmt) =
-    let branch lb blk = begin match blk with
+    let (-->) st n = tr f (St st) n in
+    let branch next lb blk = begin match blk with
     | [] -> label (tr f (St stmt) next) lb
     | h::_ -> label (tr f (St stmt) (St h)) lb end ++ tr_of_stmts f next blk
     in
     match s with
-    | Set _ -> tr f (St stmt) next
+    | Set _ -> stmt --> next
     | If (_, blk1, blk2) ->
-        if blk1 = [] && blk2 = [] then tr f (St stmt) next
-        else branch "then" blk1 ++ branch "else" blk2
+        if blk1 = [] && blk2 = [] then stmt --> next
+        else branch next "then" blk1 ++ branch next "else" blk2
     | While (exp, blk) ->
-        tr f (St stmt) next ++ branch (string_of_exp exp) blk
+       stmt --> next ++ branch (St stmt) (string_of_exp exp) blk
     | Call (FunId called)->
         let called_body = try Hashtbl.find prog.fundecs called with
           Not_found -> assert false in
         begin match called_body with
-        | [] -> tr f (St stmt) next
-        | first::_ -> tr f (St stmt) (St first)
+        | [] -> stmt --> next
+        | first::_ -> stmt --> (St first)
         end
     | Assert assertion ->
-        tr f (St stmt) RTE ++
-          label (tr f (St stmt) next) (string_of_assertion assertion)
+        stmt --> RTE ++
+          label (stmt --> next) (string_of_assertion assertion)
 
   and tr_of_stmts f next stmts = match stmts with
   | [] -> EmptyTr
@@ -325,21 +324,18 @@ let to_dot prog filename =
       tr_of_stmts f next tail 
   in
   let fun_to_dot f body = tr_of_stmts f End body in
-  let main = try Hashtbl.find prog.fundecs "main" with Not_found ->
-    raise (Error (HasNoMain)) in
-
   let fid = open_out filename in
   let fmt = formatter_of_out_channel fid in
 
   let str = sprintf "digraph %s {@\n%s}\n"
     Filename.(chop_extension (basename filename))
-    (string_of_transitions (fun_to_dot "main" main))
+    (Hashtbl.fold (fun k v acc ->
+      sprintf "%s%s" acc (string_of_transitions (fun_to_dot k v))
+    ) prog.fundecs "")
   in
 
   fprintf fmt "%s" str;
   printf "%s" str;
-  
-  (* A compléter *)
   close_out fid
 
 
