@@ -190,7 +190,7 @@ struct
 	  let v1 = eval_exp s e1 in
 	  let v2 = eval_exp s e2 in
 	    match op with
-	    | PlusI -> Val.is_safe_add v1 v2
+	    | PlusI -> Printf.printf "+ here : "; Val.is_safe_add v1 v2
             | MinusI -> Val.is_safe_sub v1 v2
 	    | Eq | Gt -> true
 	    | _ -> false

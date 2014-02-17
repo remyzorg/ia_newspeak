@@ -34,10 +34,10 @@ let add_globals globals s =
   List.fold_left (fun s' x -> State.add_var x s') s globals
   
 
-let fixpoint _f s = 
-  (* TODO : encode the Kleene fixpoint algorithm to get the least
-     fixpoint of f greater than s *)
-  s
+let rec fixpoint f s =
+  let open State in
+  let s' = join (f s) s in
+  if contains s s' then s else fixpoint f s'
 
 let check_exp loc e s =
   let rec check e =

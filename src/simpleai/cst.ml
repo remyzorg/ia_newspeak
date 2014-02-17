@@ -57,7 +57,8 @@ let add x y =
   match (x, y) with
       (Val x, Val y) -> 
 	let z = Int32.add x y in
-         if (Int64.compare (Int64.add (Int64.of_int32 x) (Int64.of_int32 y)) (Int64.of_int32 z) != 0) then Top
+         if (Int64.compare (Int64.add (Int64.of_int32 x)
+			      (Int64.of_int32 y)) (Int64.of_int32 z) != 0) then Top
 	  else Val z
     | _ -> Top
 
@@ -66,7 +67,8 @@ let is_safe_add x y =
   match (x, y) with
       (Val x, Val y) ->
 	let z = Int32.add x y in
-         (Int64.compare (Int64.add (Int64.of_int32 x) (Int64.of_int32 y)) (Int64.of_int32 z) == 0) 
+         (Int64.compare (Int64.add (Int64.of_int32 x)
+			   (Int64.of_int32 y)) (Int64.of_int32 z) == 0) 
     | _ -> false
 
 
@@ -74,7 +76,8 @@ let sub x y =
   match (x, y) with
       (Val x, Val y) -> 
 	let z = Int32.sub x y in
-         if (Int64.compare (Int64.sub (Int64.of_int32 x) (Int64.of_int32 y)) (Int64.of_int32 z) != 0) then Top
+         if (Int64.compare (Int64.sub (Int64.of_int32 x)
+			      (Int64.of_int32 y)) (Int64.of_int32 z) != 0) then Top
 	  else Val z
     | _ -> Top
         
@@ -83,12 +86,17 @@ let is_safe_sub x y =
   match (x, y) with
       (Val x, Val y) ->
 	let z = Int32.sub x y in
-         (Int64.compare (Int64.sub (Int64.of_int32 x) (Int64.of_int32 y)) (Int64.of_int32 z) == 0) 
+         (Int64.compare (Int64.sub (Int64.of_int32 x)
+			   (Int64.of_int32 y)) (Int64.of_int32 z) == 0) 
     | _ -> false
 
         
 
-let implies _ = false
+let implies (x, cmp, i) =
+  let open Simple in
+  match x with
+  | Top -> false
+  | Val v -> begin match cmp with | Equals -> (=) | IsLess -> (<) end v i
 
 (* Restricts the value x to make the condition 
    c op x true *)
